@@ -184,3 +184,69 @@ test('a price is shown only when something is really for sale', () => {
   assert.equal(core.parseQuote({ lowest_price: { value: 12.5, currency: 'EUR' }, num_for_sale: 3, blocked_from_sale: true }, 7), null);
   assert.match(core.money(12.5, 'EUR'), /12,50\s€/);
 });
+
+test('digging: numbered photos go to the model in one strict request', () => {
+  const body = core.groupingBody({ images: [jpeg, jpeg, jpeg] });
+  const parts = body.input[0].content;
+  assert.deepEqual(parts.filter((part) => part.type === 'input_text').map((part) => part.text), ['PHOTO 1', 'PHOTO 2', 'PHOTO 3']);
+  assert.ok(parts.filter((part) => part.type === 'input_image').every((part) => part.detail === 'high'));
+  assert.equal(body.text.format.name, 'vinyl_batch');
+  assert.ok(body.text.format.schema.properties.groups.items.properties.observation.required.includes('barcode'));
+  assert.throws(() => core.groupingBody({ images: [] }));
+});
+
+test('digging: a sloppy grouping answer is repaired, never fatal', () => {
+  const seen = { isRecord: true, certain: true, artist: 'Artist', title: 'Album' };
+  const groups = core.repairGroups(answer({ groups: [{ photos: [1, 2], observation: seen }, { photos: [2, 4, 9], observation: seen }], rejectedPhotos: [5] }), 6);
+  assert.deepEqual(groups.map((group) => group.photos), [[1, 2], [3], [4], [6]]);
+  assert.equal(groups[0].observation.title, 'Album');
+  assert.equal(groups[1].observation, null);
+  assert.deepEqual(core.repairGroups(answer({ groups: [{ photos: [1, 6], observation: seen }], rejectedPhotos: [2, 3, 4, 5] }), 6).map((group) => group.photos), [[1], [6]]);
+  assert.ok(core.readable(groups[0].observation) && !core.readable(core.normalizeObservation({ isRecord: true })) && !core.readable(null));
+});
+
+test('digging: long batches are read in portions; the record on a boundary goes with what follows', async () => {
+  const asked = [];
+  const groups = await core.groupInPortions(14, async (start, end) => {
+    asked.push([start, end]);
+    const count = end - start + 1, pairs = [];
+    for (let n = 1; n <= count; n += 2) pairs.push({ photos: n + 1 <= count ? [n, n + 1] : [n], observation: null });
+    return pairs;
+  }, 6);
+  const covered = groups.flatMap((group) => group.photos);
+  assert.deepEqual([...covered].sort((a, b) => a - b), Array.from({ length: 14 }, (_, i) => i + 1));
+  assert.equal(new Set(covered).size, 14);
+  assert.ok(asked.length > 2);
+  const single = await core.groupInPortions(3, async () => [{ photos: [1, 2, 3], observation: null }]);
+  assert.deepEqual(single.map((group) => group.photos), [[1, 2, 3]]);
+});
+
+test('digging: the report sees only catalogue facts and says how sure each edition is', () => {
+  const items = [
+    { number: 1, title: 'A - B', edition: '1973 · UK', url: 'https://www.discogs.com/release/1', confidence: 'confirmed', note: 'x', quote: { amount: 30, currency: 'EUR', offers: 4 }, genres: ['Jazz'] },
+    { number: 2, title: 'C - D', confidence: 'ambiguous', range: { from: 5, to: 40, currency: 'EUR' } },
+  ];
+  const facts = core.reportFacts(items);
+  assert.equal(facts[0].price, 30); assert.equal(facts[0].pressingConfirmed, true); assert.match(facts[0].priceType, /asking/);
+  assert.deepEqual(facts[1].priceRange, { from: 5, to: 40, currency: 'EUR' }); assert.equal(facts[1].price, undefined);
+  const body = core.reportBody({ items, prompt: 'только джаз' });
+  assert.match(body.input, /^User question: только джаз\nCatalogue facts: \[/);
+  assert.equal(body.tools, undefined); assert.equal(body.store, false);
+  const web = core.reportBody({ items, prompt: '', web: true });
+  assert.deepEqual(web.tools, [{ type: 'web_search' }]); assert.match(web.input, /самые дорогие/);
+  assert.match(core.batchSummary(items, 3), /Найдено: 1 пластинка из 3 снимков\. Цена есть у 1\. Дороже всего: №1 A - B — от 30,00\s€/);
+});
+
+test('digging: the answer keeps only safe source links and renders as harmless Markdown', () => {
+  const response = { status: 'completed', output: [
+    { type: 'web_search_call', action: { sources: [{ url: 'https://www.discogs.com/a', title: 'Discogs' }, { url: 'http://insecure.example/x' }, { url: 'https://192.168.1.1/x' }] } },
+    { type: 'message', content: [{ type: 'output_text', text: '## Итог\n- **№1** дороже всегоciteturn0', annotations: [{ type: 'url_citation', url: 'https://www.discogs.com/a' }, { type: 'url_citation', url: 'https://shop.example/b', title: 'Shop' }] }] },
+  ] };
+  const parsed = core.parseReport(response);
+  assert.equal(parsed.text, '## Итог\n- **№1** дороже всего');
+  assert.deepEqual(parsed.sources.map((source) => source.url), ['https://www.discogs.com/a', 'https://shop.example/b']);
+  const html = core.markdown('## Итог\n- **жирно** <script>x</script>\n1. [ссылка](https://www.discogs.com/r?a=1&b=2)\n2. [плохая](javascript:alert(1))\n\nабзац');
+  assert.equal(html, '<h3>Итог</h3><ul><li><b>жирно</b> &lt;script&gt;x&lt;/script&gt;</li></ul><ol><li><a href="https://www.discogs.com/r?a=1&amp;b=2" target="_blank" rel="noopener">ссылка</a></li><li>[плохая](javascript:alert(1))</li></ol><p>абзац</p>');
+  assert.throws(() => core.parseReport({ status: 'completed', output: [] }));
+  assert.equal(core.records(21), '21 пластинка'); assert.equal(core.photos(12), '12 снимков'); assert.equal(core.photos(3), '3 снимка');
+});

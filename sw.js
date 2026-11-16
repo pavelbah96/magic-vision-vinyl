@@ -1,7 +1,7 @@
 // Keeps the app shell available from the Home Screen without a connection.
 // Network first, so a new version is picked up as soon as the phone is online.
-const CACHE = 'mv-web-1';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'api.js', 'core.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
+const CACHE = 'mv-web-2';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'api.js', 'core.js', 'dig.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 self.addEventListener('install', (event) => { event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((names) => Promise.all(names.filter((name) => name !== CACHE).map((name) => caches.delete(name)))).then(() => self.clients.claim()));

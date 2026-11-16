@@ -2,8 +2,9 @@
 // front photo → optional back → album → edition → price → optional close-up of the label.
 import * as core from './core.js';
 import * as api from './api.js';
+import { createDig } from './dig.js';
 
-const VERSION = '1 (16.11.2026)';
+const VERSION = '2 (16.11.2026)';
 const $ = (id) => document.getElementById(id);
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -240,6 +241,7 @@ function viewReady() {
     <p class="lead">Наведите телефон на пластинку — найду альбом, конкретное издание и цену.</p>
     <div class="links"><button class="link" data-act="pick-front">Выбрать фото из галереи</button></div>
   </div>
+  <button class="ghost dig-entry" data-act="dig-open"><b>Диггинг</b><span>${dig.count ? `Продолжить пачку · ${core.photos(dig.count)}` : 'Много пластинок подряд, потом один вопрос по всем'}</span></button>
   <form class="search" data-form="search">
     <input name="q" placeholder="Исполнитель — альбом или штрихкод" enterkeyhint="search" autocomplete="off" aria-label="Поиск по названию">
     <button class="ghost" style="flex:none">Найти</button>
@@ -344,9 +346,12 @@ function viewError() {
   return `<div class="card error"><p><b>Не получилось</b></p><p>${esc(S.error)}</p>
     <div class="stack">${search}${retry}<button class="primary" data-act="reset">На главный экран</button></div></div>`;
 }
+let mode = store.get('mode') === 'dig' ? 'dig' : 'single';
 function render() {
-  $('view').innerHTML = { ready: viewReady, front: viewFront, working: viewWorking, result: viewResult, error: viewError }[S.phase]();
+  $('view').innerHTML = mode === 'dig' ? dig.view() : { ready: viewReady, front: viewFront, working: viewWorking, result: viewResult, error: viewError }[S.phase]();
+  $('history').hidden = mode === 'dig';
 }
+function switchMode(next) { mode = next; store.set('mode', next); render(); window.scrollTo(0, 0); }
 const BADGE = { confirmed: 'издание подтверждено', likely: 'вероятное издание', ambiguous: 'издание не определено', unknown: 'издание неизвестно', manual: 'выбрано вручную' };
 function renderHistory() {
   const all = history();
@@ -377,7 +382,7 @@ function diagnostics() {
     evidence: S.evidence ? core.evidenceSummary(S.evidence) : [], matched: S.verdict?.best?.score.matched ?? [], conflicts: S.verdict?.best?.score.conflicts ?? [],
     shots: S.shots, labelShots: S.labelShots, seconds: Object.fromEntries(Object.entries(S.timings).map(([name, value]) => [name, Number(value.toFixed(2))])),
     error: S.error || S.priceError || S.message, openaiKey: Boolean(settings.key), discogsToken: Boolean(settings.token), model: settings.model,
-    ...api.diagnostics(), secure: window.isSecureContext, agent: navigator.userAgent,
+    ...api.diagnostics(), ...dig.diagnostics(), mode, secure: window.isSecureContext, agent: navigator.userAgent,
   }, null, 1);
 }
 async function copyDiagnostics(button) {
@@ -392,7 +397,11 @@ async function copyDiagnostics(button) {
 
 // MARK: events
 
+const dig = createDig({ $, esc, settings, prepare, openSettings, render: () => render() });
 const actions = {
+  ...dig.actions,
+  'dig-open': () => { ticket++; S = fresh(); switchMode('dig'); },
+  'dig-exit': () => { dig.leave(); switchMode('single'); },
   'shoot-front': () => shoot('front'), 'pick-front': () => shoot('front', true), 'shoot-back': () => shoot('back'), 'shoot-label': () => shoot('label'),
   lookup: () => lookup(), settings: () => openSettings(),
   reset: () => { ticket++; S = fresh(); render(); },
@@ -414,4 +423,5 @@ $('settings-form').addEventListener('submit', saveSettings);
 $('copy-diagnostics').addEventListener('click', (event) => copyDiagnostics(event.currentTarget));
 
 render(); renderHistory();
+dig.load().then(render);
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});

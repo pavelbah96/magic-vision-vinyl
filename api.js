@@ -32,11 +32,11 @@ async function request(url, options, timeout, service) {
 // MARK: OpenAI
 
 let fineRejected = false;
-async function respond(body, key) {
+async function respond(body, key, timeout = 60000) {
   if (!String(key ?? '').trim()) throw new ApiError('Введите ключ OpenAI в настройках.');
   return request('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.trim()}` }, body: JSON.stringify(body),
-  }, 60000, 'openai');
+  }, timeout, 'openai');
 }
 /** Reads one record from its photos. Falls back to the standard resolution if the full one is refused. */
 export async function read({ front, back = null, key, model, focus = 'sleeve' }) {
@@ -52,6 +52,14 @@ export async function select({ front, back = null, key, model, candidates }) {
   return core.parseSelection(await respond(core.selectionBody({ front, back, model, candidates }), key), candidates);
 }
 export const diagnostics = () => ({ fineRejected });
+/** Digging: numbered photos → records (photo numbers within this request, from 1). */
+export async function group({ images, key, model }) {
+  return core.repairGroups(await respond(core.groupingBody({ images, model }), key, 150000), images.length);
+}
+/** Digging: one answer about the whole batch, to the user's own question. */
+export async function report({ items, prompt, key, model, web = false }) {
+  return core.parseReport(await respond(core.reportBody({ items, prompt, model, web }), key, web ? 180000 : 120000));
+}
 
 // MARK: Discogs
 
