@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Magic Vision · Пластинки</title>
+<meta name="description" content="Сфотографируйте пластинку телефоном — альбом, конкретное издание и цена на Discogs.">
+<meta name="theme-color" content="#0d0d0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Пластинки">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="disc" aria-hidden="true"></span>Пластинки</div>
+  <button class="icon" id="open-settings" aria-label="Настройки">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</header>
+
+<main id="view" aria-live="polite"></main>
+<section id="history"></section>
+
+<dialog id="settings">
+  <form method="dialog" id="settings-form">
+    <h2>Настройки</h2>
+    <label>Ключ OpenAI
+      <input id="set-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-…">
+    </label>
+    <p class="hint">Нужен для чтения снимков. Хранится только в этом браузере и уходит только в OpenAI.</p>
+    <label>Токен Discogs <span class="soft">(необязательно)</span>
+      <input id="set-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <p class="hint">С токеном Discogs разрешает больше запросов и отдаёт оценку цены по состоянию. Создаётся на discogs.com → Settings → Developers.</p>
+    <label>Модель
+      <input id="set-model" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <p class="hint">Снимки пластинок отправляются в OpenAI для распознавания. На этом устройстве они не сохраняются.</p>
+    <div class="row">
+      <button type="button" class="ghost" id="copy-diagnostics">Скопировать диагностику</button>
+      <button type="submit" class="primary" id="save-settings">Готово</button>
+    </div>
+    <p class="hint" id="version"></p>
+  </form>
+</dialog>
+
+<input type="file" id="camera" accept="image/*" capture="environment" hidden>
+<input type="file" id="library" accept="image/*" hidden>
+<script type="module" src="app.js"></script>
+</body>
+</html>
